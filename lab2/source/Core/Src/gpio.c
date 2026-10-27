@@ -42,7 +42,9 @@
 void MX_GPIO_Init(void)
 {
 
-  /* GPIO Ports Clock Enable */
+  /* PC15 и PD13–PD15 настраивает gpio_drv (кнопка и светодиоды).
+   * PC6/PC7 в альтернативную функцию USART6 переводит HAL_UART_MspInit. */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
