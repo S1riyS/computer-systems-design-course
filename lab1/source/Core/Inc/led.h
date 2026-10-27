@@ -10,6 +10,7 @@ typedef enum {
 	LED_COUNT
 } led_id_t;
 
+void led_init(void);
 void led_set(led_id_t led, bool on);
 void led_all_off(void);
 

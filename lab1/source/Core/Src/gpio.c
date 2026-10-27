@@ -42,30 +42,28 @@
 void MX_GPIO_Init(void)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+  /* GPIO Ports Clock Enable.
+   * PC15 и PD13–PD15 настраивает gpio_drv, не HAL.
+   * Исходная инициализация через HAL (раскомментировать вместе с отключением
+   * led_init/button_init, если нужен старый вариант):
+   *
+   * GPIO_InitTypeDef GPIO_InitStruct = {0};
+   * __HAL_RCC_GPIOC_CLK_ENABLE();
+   * __HAL_RCC_GPIOD_CLK_ENABLE();
+   * HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+   * GPIO_InitStruct.Pin = GPIO_PIN_15;
+   * GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+   * GPIO_InitStruct.Pull = GPIO_NOPULL;
+   * HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+   * GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+   * GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+   * GPIO_InitStruct.Pull = GPIO_NOPULL;
+   * GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+   * HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+   */
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PC15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PD13 PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 }
 

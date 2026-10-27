@@ -1,4 +1,5 @@
 #include "button.h"
+#include "gpio_drv.h"
 #include "main.h"
 #include <stdbool.h>
 
@@ -10,9 +11,23 @@ static bool stable_pressed;
 static bool last_raw;
 static uint32_t raw_changed_at;
 
+void button_init(void)
+{
+	gpio_drv_config_t config = {
+		.mode = GPIO_DRV_INPUT,
+		.output = GPIO_DRV_PUSH_PULL,
+		.speed = GPIO_DRV_SPEED_LOW,
+		.pull = GPIO_DRV_NO_PULL,
+		.level = false,
+	};
+
+	gpio_drv_init(BUTTON_PORT, BUTTON_PIN, config);
+}
+
 static bool read_raw(void)
 {
-	return HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) == GPIO_PIN_RESET;
+	/* HAL: return HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) == GPIO_PIN_RESET; */
+	return !gpio_drv_read(BUTTON_PORT, BUTTON_PIN);
 }
 
 button_event_t button_poll(void)

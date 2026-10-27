@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "traffic.h"
+#include "led.h"
+#include "button.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,6 +87,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
+  /* Свой драйвер. В исходном варианте этих вызовов не было:
+   * пины настраивал MX_GPIO_Init() через HAL (блок в gpio.c). */
+  led_init();
+  button_init();
   traffic_init();
   /* USER CODE END 2 */
 
