@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Часы SDK-1.1M</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <h1>Часы SDK-1.1M</h1>
+  <p id="link">Открываю порт…</p>
+  <label for="board">Сейчас на плате</label>
+  <input id="board" readonly value="--:--:--">
+  <p id="meta">--/--/-- · — · нет данных</p>
+  <label for="date">Дата</label>
+  <input id="date" type="date">
+  <label for="time">Время</label>
+  <input id="time" type="time" step="1">
+  <label for="weekday">День недели</label>
+  <select id="weekday">__OPTIONS__</select>
+  <button id="apply" type="button">Установить</button>
+  <button id="now" class="secondary" type="button">Установить текущее</button>
+  <p id="notice"></p>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
