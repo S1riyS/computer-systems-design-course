@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -88,10 +87,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-  /* Пины светофора настраивает свой драйвер, как в ЛР1.
-   * USART6 к этому моменту уже включён, консоль только выбирает режим обмена. */
+  /* Пины светофора настраивает gpio_drv, как в ЛР1.
+   * USART6 поднимает usart_drv из console_init, не CubeMX. */
   led_init();
   button_init();
   traffic_init();

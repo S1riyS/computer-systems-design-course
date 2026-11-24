@@ -1,10 +1,9 @@
 #include "uart.h"
 #include "fifo.h"
-#include "usart.h"
+#include "usart_drv.h"
 #include <string.h>
 
-#define UART_HANDLE huart6
-#define UART_IRQ    USART6_IRQn
+/* Отладочный UART стенда: USART6 (PC6/PC7) -> программатор -> виртуальный COM-порт. */
 
 static uint8_t rx_storage[UART_RX_BUFFER_SIZE];
 static uint8_t tx_storage[UART_TX_BUFFER_SIZE];
@@ -13,24 +12,19 @@ static fifo_t tx_fifo;
 
 static volatile bool interrupts_enabled;
 static volatile bool tx_busy;
-static uint8_t rx_byte;
-static uint8_t tx_byte;
 
+/* Вызывается из прерывания или при уже запрещённом векторе USART6. */
 static void tx_start_next(void)
 {
-	if (!fifo_pop(&tx_fifo, &tx_byte)) {
+	uint8_t byte;
+
+	if (usart_drv_tx_ready() && fifo_pop(&tx_fifo, &byte)) {
+		tx_busy = true;
+		(void)usart_drv_write(byte);
+	} else {
 		tx_busy = false;
-		return;
 	}
-
-	tx_busy = true;
-	if (HAL_UART_Transmit_IT(&UART_HANDLE, &tx_byte, 1) != HAL_OK)
-		tx_busy = false;
-}
-
-static void rx_start(void)
-{
-	HAL_UART_Receive_IT(&UART_HANDLE, &rx_byte, 1);
+	usart_drv_enable_tx_irq(tx_busy || !fifo_is_empty(&tx_fifo));
 }
 
 void uart_init(bool use_interrupts)
@@ -39,10 +33,7 @@ void uart_init(bool use_interrupts)
 	fifo_init(&tx_fifo, tx_storage, (uint16_t)sizeof(tx_storage));
 	tx_busy = false;
 	interrupts_enabled = false;
-
-	/* CubeMX включает USART6_IRQn в HAL_UART_MspInit ещё до запуска приёма.
-	 * Пока режим не выбран, вектор держим выключенным. */
-	HAL_NVIC_DisableIRQ(UART_IRQ);
+	usart_drv_init(USART_DRV_POLLING, 57600);
 	uart_set_interrupts(use_interrupts);
 }
 
@@ -53,22 +44,21 @@ void uart_set_interrupts(bool enabled)
 
 	if (enabled) {
 		interrupts_enabled = true;
-		HAL_NVIC_EnableIRQ(UART_IRQ);
-		rx_start();
+		usart_drv_set_mode(USART_DRV_INTERRUPTS);
 		return;
 	}
 
-	/* Сначала опустошаем очередь передачи: прерывание ещё живо.
-	 * Если выключить его посреди HAL_UART_Transmit_IT, gState останется
-	 * BUSY_TX, и опросный HAL_UART_Transmit больше не стартует. */
-	while (tx_busy) {
+	/* Очередь передачи доедаем, пока вектор ещё жив.
+	 * Иначе последний байт так и останется в массиве: писать DR будет некому. */
+	while (tx_busy || !fifo_is_empty(&tx_fifo)) {
+		usart_drv_irq_disable();
+		if (!tx_busy)
+			tx_start_next();
+		usart_drv_irq_enable();
 	}
-
+	usart_drv_flush();
+	usart_drv_set_mode(USART_DRV_POLLING);
 	interrupts_enabled = false;
-	HAL_NVIC_DisableIRQ(UART_IRQ);
-	/* Иначе незавершённый Receive_IT оставляет RxState занятым,
-	 * и HAL_UART_Receive в режиме опроса сразу возвращает HAL_BUSY. */
-	HAL_UART_AbortReceive(&UART_HANDLE);
 }
 
 bool uart_interrupts_enabled(void)
@@ -83,21 +73,15 @@ bool uart_read_byte(uint8_t *byte)
 		return true;
 	if (interrupts_enabled)
 		return false;
-
-	HAL_StatusTypeDef status = HAL_UART_Receive(&UART_HANDLE, byte, 1, 0);
-	if (status == HAL_OK)
-		return true;
-	/* Таймаут 0 — это нормальный «байта нет», состояние HAL уже READY.
-	 * Любой другой код значит, что приём застрял: сбрасываем его. */
-	if (status != HAL_TIMEOUT)
-		HAL_UART_AbortReceive(&UART_HANDLE);
-	return false;
+	return usart_drv_read(byte) == USART_DRV_OK;
 }
 
 void uart_write(const char *data, size_t len)
 {
 	if (!interrupts_enabled) {
-		HAL_UART_Transmit(&UART_HANDLE, (uint8_t *)data, (uint16_t)len, HAL_MAX_DELAY);
+		for (size_t i = 0; i < len; i++)
+			usart_drv_write_blocking((uint8_t)data[i]);
+		usart_drv_flush();
 		return;
 	}
 
@@ -108,11 +92,11 @@ void uart_write(const char *data, size_t len)
 		}
 
 		/* Кто запускает передачу, решаем при выключенном векторе USART:
-		 * иначе TxCplt может забрать байт между проверкой tx_busy и стартом. */
-		HAL_NVIC_DisableIRQ(UART_IRQ);
+		 * иначе обработчик заберёт байт между проверкой tx_busy и стартом. */
+		usart_drv_irq_disable();
 		if (!tx_busy)
 			tx_start_next();
-		HAL_NVIC_EnableIRQ(UART_IRQ);
+		usart_drv_irq_enable();
 	}
 }
 
@@ -121,27 +105,14 @@ void uart_print(const char *str)
 	uart_write(str, strlen(str));
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void usart_drv_on_rx(uint8_t byte)
 {
-	if (huart != &UART_HANDLE)
-		return;
-
-	/* Очередь полна — байт теряется, но приём нужно запустить снова,
-	 * иначе следующий байт уже никто не примет. */
-	(void)fifo_push(&rx_fifo, rx_byte);
-	rx_start();
+	/* Очередь полна — байт теряется. RXNEIE при этом не снимается,
+	 * следующий байт по-прежнему вызовет прерывание. */
+	(void)fifo_push(&rx_fifo, byte);
 }
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+void usart_drv_on_tx_ready(void)
 {
-	if (huart == &UART_HANDLE)
-		tx_start_next();
-}
-
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
-{
-	/* ORE и прочие ошибки останавливают Receive_IT. Без повторного
-	 * запуска консоль замолкает до перезагрузки. */
-	if (huart == &UART_HANDLE && interrupts_enabled)
-		rx_start();
+	tx_start_next();
 }

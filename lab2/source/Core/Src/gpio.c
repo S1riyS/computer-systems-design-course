@@ -43,7 +43,7 @@ void MX_GPIO_Init(void)
 {
 
   /* PC15 и PD13–PD15 настраивает gpio_drv (кнопка и светодиоды).
-   * PC6/PC7 в альтернативную функцию USART6 переводит HAL_UART_MspInit. */
+   * PC6/PC7 в альтернативную функцию USART6 переводит usart_drv. */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
